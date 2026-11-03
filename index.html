@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>F3 C++ 溫習</title>
+<title>F3 C++ Review</title>
 <style>
   :root { --bg: #f6f7f9; --ink: #1d2330; --muted: #6b7385; --card: #ffffff; --accent: #0f8b7d; --line: #e3e6eb; }
   @media (prefers-color-scheme: dark) {
@@ -11,13 +11,15 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
-    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; }
+    font-family: system-ui, -apple-system, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
   main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
   h1 { font-size: clamp(24px, 4vw, 34px); margin: 0 0 6px; }
   .sub { color: var(--muted); margin: 0 0 32px; }
+  .zh { display: block; color: var(--muted); font-size: .86em; font-weight: 500; margin-top: 2px; }
   h2 { font-size: 15px; color: var(--accent); letter-spacing: .04em; margin: 0 0 12px; }
+  h2 .zh { color: var(--accent); opacity: .75; }
   .lesson { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 14px; }
-  .lesson h3 { margin: 0 0 4px; font-size: 19px; }
+  .lesson h3 { margin: 0 0 6px; font-size: 19px; }
   .lesson p { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.6; }
   .links { display: flex; gap: 8px; flex-wrap: wrap; }
   .links a { text-decoration: none; padding: 8px 16px; border-radius: 999px; font-weight: 600; font-size: 14px;
@@ -28,28 +30,29 @@
 </head>
 <body>
 <main>
-  <h1>F3 C++ 溫習</h1>
-  <p class="sub">互動 3D 教學・廣東話 / English</p>
+  <h1>F3 C++ Review<span class="zh">F3 C++ 溫習</span></h1>
+  <p class="sub">Interactive 3D lessons · English / Cantonese</p>
 
-  <h2>CHAPTER 3　條件計數與累加</h2>
+  <h2>CHAPTER 3　Conditional Counting &amp; Summation<span class="zh">條件計數與累加</span></h2>
   <div class="lesson">
-    <h3>3-1　列出 7 的倍數</h3>
-    <p>for 迴圈、if 判斷、% 取餘數；count 計數同 sum 累加；輸出格式（空格同空行）。</p>
+    <h3>3-1　List Multiples of 7<span class="zh">列出 7 的倍數</span></h3>
+    <p>for loop, if statement and the % remainder operator; counting with count and adding with sum; output format (spaces and a blank line).</p>
     <div class="links">
-      <a href="3-1_七的倍數/3-1_七的倍數_202611030942.html">廣東話</a>
-      <a class="alt" href="3-1_七的倍數/3-1_七的倍數_202611030942.html?lang=en">English</a>
+      <a href="3-1_七的倍數/3-1_七的倍數_202611030942.html?lang=en">English</a>
+      <a class="alt" href="3-1_七的倍數/3-1_七的倍數_202611030942.html">廣東話</a>
     </div>
   </div>
   <div class="lesson">
-    <h3>3-16　合格人數與總分</h3>
-    <p>迴圈內用 cin 逐筆讀入；score &gt;= 50 判斷；合格先計數同累加。</p>
+    <h3>3-16　Passing Count and Score Sum<span class="zh">合格人數與總分</span></h3>
+    <p>Read each score with cin inside the loop; test score &gt;= 50; count and add only the passing scores.</p>
     <div class="links">
-      <a href="3-16_合格人數與總分/3-16_合格人數與總分_202611030943.html">廣東話</a>
-      <a class="alt" href="3-16_合格人數與總分/3-16_合格人數與總分_202611030943.html?lang=en">English</a>
+      <a href="3-16_合格人數與總分/3-16_合格人數與總分_202611030943.html?lang=en">English</a>
+      <a class="alt" href="3-16_合格人數與總分/3-16_合格人數與總分_202611030943.html">廣東話</a>
     </div>
   </div>
 
-  <footer>用法：撳「開始學習」，每步完咗會暫停；鍵盤 ← / → 上一步、下一步，空白鍵繼續，R 重播。建議用電腦或平板開啟。</footer>
+  <footer>How to use: press Start; each step pauses when it ends. Keyboard: ← / → for back and next, Space to continue, R to replay. Best on a computer or tablet.
+    <span class="zh">用法：撳「開始」，每步完咗會暫停；← / → 上一步、下一步，空白鍵繼續，R 重播。</span></footer>
 </main>
 </body>
 </html>

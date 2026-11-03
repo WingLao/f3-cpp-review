@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3-16 合格人數與總分</title>
+<meta name="version" content="202611030943 (Asia/Macau)">
+<style>
+  :root {
+    --bg: #e8eaee; --stage: #f6f7f9; --ink: #1d2330; --muted: #6b7385;
+    --accent: #ff7a45; --accent2: #3d7cff; --panel: rgba(255,255,255,.86);
+    --shadow: 0 10px 30px rgba(20,30,50,.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; overflow: hidden; }
+  body { display: grid; place-items: center; }
+  #stage { position: relative; width: min(calc(100vw - 32px), calc((100vh - 32px) * 16 / 9));
+    aspect-ratio: 16 / 9; background: var(--stage); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
+  #view { position: absolute; inset: 0; }
+  #c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+  #c:active { cursor: grabbing; }
+  button { font: inherit; cursor: pointer; border: 0; }
+
+  /* 頂部：進度條 + 標題 + 音樂 */
+  #top { position: absolute; left: 0; right: 0; top: 0; padding: 14px 18px 0; pointer-events: none; }
+  #bar { display: flex; gap: 4px; height: 6px; }
+  #bar .seg { flex: 1; background: rgba(30,40,60,.1); border-radius: 3px; overflow: hidden; }
+  #bar .seg i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width .2s linear; }
+  #head { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  #stepTitle { font-size: clamp(13px, 1.6vw, 20px); font-weight: 600; letter-spacing: .02em; opacity: 0; transition: opacity .4s; }
+  #stepTitle small { color: var(--muted); font-weight: 500; margin-right: .6em; }
+  #music { display: flex; align-items: center; gap: 8px; pointer-events: auto; background: var(--panel);
+    padding: 6px 10px; border-radius: 999px; box-shadow: 0 2px 10px rgba(0,0,0,.06); opacity: 0; transition: opacity .4s; }
+  #music button { background: none; width: 26px; height: 26px; display: grid; place-items: center; color: var(--ink); border-radius: 50%; }
+  #music button:hover { background: rgba(0,0,0,.06); }
+  #music input { width: clamp(60px, 8vw, 110px); accent-color: var(--accent); }
+
+  /* 字幕 */
+  #sub { position: absolute; left: 50%; bottom: 5.5%; transform: translateX(-50%); max-width: 50%;
+    text-align: center; font-size: clamp(13px, 1.75vw, 24px); line-height: 1.45; color: #fff;
+    background: rgba(20,24,34,.72); padding: .35em .9em; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #sub.on { opacity: 1; }
+  #sub b { font-weight: 700; margin-right: .4em; }
+
+  /* 左下角控制 */
+  #ctrl { position: absolute; left: 18px; bottom: 18px; display: flex; gap: 8px; opacity: 0; transition: opacity .4s; }
+  #ctrl button { display: flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 999px;
+    background: var(--panel); color: var(--ink); font-size: clamp(11px, 1.2vw, 15px); font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,.07);
+    transition: transform .15s, background .2s, opacity .2s; }
+  #ctrl button:hover { transform: translateY(-2px); }
+  #ctrl button:disabled { opacity: .35; pointer-events: none; }
+  #ctrl svg { width: 1.1em; height: 1.1em; }
+  #next.ready { background: var(--accent); color: #fff; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,122,69,.55); } 50% { box-shadow: 0 0 0 10px rgba(255,122,69,0); } }
+
+  /* 右下角說明書縮圖 */
+  #thumb { position: absolute; right: 18px; bottom: 18px; width: 20%; aspect-ratio: 16/10; border-radius: 10px;
+    background: #fff center / contain no-repeat; border: 3px solid #fff; box-shadow: var(--shadow); cursor: zoom-in; opacity: 0; transition: opacity .4s, transform .2s; }
+  #thumb:hover { transform: scale(1.03); }
+  #thumb span { position: absolute; left: 6px; top: 6px; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent); padding: 2px 7px; border-radius: 99px; }
+  #zoom { position: fixed; inset: 0; z-index: 50; background: rgba(15,18,26,0); display: none; cursor: zoom-out; transition: background .35s; }
+  #zoom.show { background: rgba(15,18,26,.82); }
+  #zoom img { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform .35s cubic-bezier(.2,.8,.2,1); border-radius: 10px; background: #fff; }
+
+  /* 3D 標籤 */
+  #labels { position: absolute; inset: 0; pointer-events: none; }
+  .lbl { position: absolute; transform: translate(-50%, -130%); background: var(--ink); color: #fff; font-size: clamp(10px, 1.1vw, 14px);
+    padding: 3px 9px; border-radius: 6px; white-space: nowrap; opacity: 0; transition: opacity .3s; }
+  .lbl::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: var(--ink); }
+  .lbl.on { opacity: 1; }
+
+  /* 開始 / 完成卡片 */
+  .overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(246,247,249,.55);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: opacity .5s; }
+  .overlay.hide { opacity: 0; pointer-events: none; }
+  .card { text-align: center; }
+  .card h1 { font-size: clamp(22px, 3.6vw, 48px); margin: 0 0 .25em; letter-spacing: .03em; }
+  .card p { color: var(--muted); margin: 0 0 1.4em; font-size: clamp(12px, 1.4vw, 18px); }
+  .big { background: var(--accent); color: #fff; font-size: clamp(15px, 1.8vw, 22px); font-weight: 700;
+    padding: .75em 2.2em; border-radius: 999px; box-shadow: 0 8px 24px rgba(255,122,69,.4); transition: transform .15s; }
+  .big:hover { transform: translateY(-3px) scale(1.03); }
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+  #paused { position: absolute; top: 50px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--muted);
+    background: var(--panel); padding: 4px 12px; border-radius: 99px; opacity: 0; transition: opacity .3s; }
+  #paused.on { opacity: 1; }
+
+  /* 語言選擇（lesson.json 有 i18n 時出現） */
+  #langs { display: flex; gap: 8px; justify-content: center; margin: -0.4em 0 1.4em; }
+  #langs button { padding: .4em 1.1em; border-radius: 999px; background: var(--panel); color: var(--ink); font-weight: 600;
+    font-size: clamp(12px, 1.3vw, 16px); box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+  #langs button.on { background: var(--ink); color: #fff; }
+
+  /* 程式碼面板（lesson.json 有 code 時出現）：3D 在左、程式在右 */
+  #code { display: none; }
+  .has-code #view { right: 40%; }
+  .has-code #sub { left: 30%; max-width: 54%; }
+  .has-code #paused { left: 30%; top: 104px; }
+  .has-code #thumb { display: none; }
+  .has-code #code { display: flex; flex-direction: column; position: absolute; top: 9.5%; right: 18px; bottom: 18px; width: calc(40% - 24px);
+    background: #1b2130; border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; opacity: 0; transition: opacity .4s; }
+  #code header { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #232a3b; color: #8a93a3;
+    font-size: clamp(10px, 1vw, 13px); font-weight: 600; }
+  #code header i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  #code header span { margin-left: 8px; }
+  #code pre { margin: 0; padding: 10px 0; flex: 1; overflow: auto; font: 500 clamp(10px, 1.12vw, 15px)/1.62 Menlo, Consolas, "Courier New", monospace; color: #e6e9ef; }
+  .cl { display: flex; max-height: 0; opacity: 0; overflow: hidden; border-left: 3px solid transparent;
+    transition: max-height .5s ease, opacity .5s ease, background .6s, border-color .6s; }
+  .cl.on { max-height: 2em; opacity: 1; }
+  .cl.focus { background: rgba(255,210,122,.11); border-left-color: #ffd27a; }
+  .cl.new { animation: flash 1.6s ease-out; }
+  @keyframes flash { 0%, 35% { background: rgba(126,226,184,.32); } 100% { background: transparent; } }
+  .cl .n { width: 3em; flex: none; text-align: right; padding-right: 1.1em; color: #4b5468; user-select: none; }
+  .cl .t { white-space: pre; padding-right: 1em; }
+  .tk-kw { color: #c792ea; } .tk-ty { color: #82aaff; } .tk-str { color: #c3e88d; } .tk-num { color: #f78c6c; }
+  .tk-pre { color: #89ddff; } .tk-com { color: #697098; font-style: italic; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<!-- 課程資料（由 gen_tts.py 產生）與 3D 場景（每個課程自訂） -->
+<script src="lesson_data.js"></script>
+<script src="scene.js"></script>
+</head>
+<body>
+<div id="stage">
+  <div id="view"><canvas id="c"></canvas><div id="labels"></div></div>
+  <div id="code"><header><i style="background:#ff5f57"></i><i style="background:#ffbd2e"></i><i style="background:#28c840"></i><span id="codeTitle"></span></header><pre id="codeBody"></pre></div>
+  <div id="top">
+    <div id="bar"></div>
+    <div id="head">
+      <div id="stepTitle"></div>
+      <div id="music">
+        <button id="mute" title="靜音"></button>
+        <input id="vol" type="range" min="0" max="1" step="0.01" value="0.45" title="音樂音量">
+      </div>
+    </div>
+  </div>
+  <div id="paused"></div>
+  <div id="sub"></div>
+  <div id="ctrl">
+    <button id="prev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><span></span></button>
+    <button id="replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span></span></button>
+    <button id="next"><span></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+  </div>
+  <div id="thumb"><span></span></div>
+  <div id="startOv" class="overlay"><div class="card"><h1 id="t1"></h1><p id="t2"></p><div id="langs"></div><button class="big" id="start"></button></div></div>
+  <div id="doneOv" class="overlay hide"><div class="card"><h1 id="d1"></h1><p id="d2"></p><button class="big" id="restart"></button></div></div>
+</div>
+<div id="zoom"><img alt=""></div>
+<canvas id="confetti"></canvas>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const L = window.LESSON;
+if (!L) { document.body.innerHTML = '<p style="padding:2em">找不到 lesson_data.js，請先執行 gen_tts.py。</p>'; throw 0; }
+// 多語言：?lang=en 時用 L.i18n.en 覆寫標題、介面文字、講者與每步旁白（3D 場景經 api.lang 自行切換文字）
+const LANG = (() => { const k = new URLSearchParams(location.search).get('lang'); return k && L.i18n?.[k] ? k : null; })();
+if (LANG) {
+  const T = L.i18n[LANG];
+  for (const k of ['title', 'subtitle', 'finishedSub', 'speakers', 'codeTitle']) if (T[k] != null) L[k] = T[k];
+  L.ui = { ...L.ui, ...T.ui };
+  (T.steps || []).forEach((s, i) => { if (L.steps[i]) Object.assign(L.steps[i], { title: s.title ?? L.steps[i].title, audio: s.audio, narration: s.narration }); });
+  document.documentElement.lang = T.htmlLang || LANG;
+}
+const UI = Object.assign({ start: '開始組裝', prev: '上一步', replay: '重播', next: '繼續', done: '完成', restart: '重新開始',
+  step: '步驟', paused: '已暫停 · 按「繼續」進入下一步', finished: '完成！', finishedSub: '你已完成全部步驟', manual: '說明書',
+  mute: '靜音', unmute: '開啟音樂' }, L.ui || {});
+const $ = id => document.getElementById(id);
+if (L.i18n) {
+  const opts = [[null, L.langName || '中文'], ...Object.entries(L.i18n).map(([k, t]) => [k, t.langName || k])];
+  $('langs').innerHTML = opts.map(([k, name]) => `<button data-k="${k ?? ''}" class="${k === LANG ? 'on' : ''}">${name}</button>`).join('');
+  $('langs').onclick = e => {
+    const k = e.target.dataset?.k; if (k == null || (k || null) === LANG) return;
+    const q = new URLSearchParams(location.search); k ? q.set('lang', k) : q.delete('lang');
+    location.search = q.toString();
+  };
+}
+const esc = s => String(s ?? '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+document.title = L.title || document.title;
+$('t1').textContent = L.title || ''; $('t2').textContent = L.subtitle || '';
+$('start').textContent = UI.start; $('restart').textContent = UI.restart;
+$('d1').textContent = UI.finished; $('d2').textContent = L.finishedSub || UI.finishedSub;
+$('prev').querySelector('span').textContent = UI.prev;
+$('replay').querySelector('span').textContent = UI.replay;
+$('paused').textContent = UI.paused;
+if (L.theme) for (const [k, v] of Object.entries(L.theme)) document.documentElement.style.setProperty('--' + k, v);
+
+/* ---------------- 3D 基礎 ---------------- */
+const stage = $('stage'), canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--stage').trim() || '#f6f7f9');
+const camera = new THREE.PerspectiveCamera(38, 16 / 9, 0.05, 500);
+scene.add(new THREE.HemisphereLight(0xffffff, 0xb9c0cc, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(4, 8, 5); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6 }); sun.shadow.bias = -0.0005;
+scene.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({ opacity: 0.13 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const grid = new THREE.GridHelper(20, 40, 0xd5d9e0, 0xe4e7ec); grid.position.y = 0.001; scene.add(grid);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.enablePan = false; controls.minDistance = 1; controls.maxDistance = 40;
+controls.maxPolarAngle = Math.PI * 0.495;
+
+const view = $('view');   // 有程式碼面板時，3D 只佔左側
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(view); resize();
+
+/* ---------------- 給 scene.js 的 API ---------------- */
+const parts = {};
+const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05, ...o });
+const asMat = c => (c && c.isMaterial) ? c : mat(c ?? 0xcccccc);
+function place(m, pos = [0, 0, 0], rot = [0, 0, 0]) {
+  m.position.set(...pos); m.rotation.set(...rot);
+  m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return m;
+}
+const api = {
+  THREE, scene, camera, controls, parts, mat, lang: LANG,
+  box: (w, h, d, color, pos, rot, r = 0.02) => place(new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2.01, h / 2.01, d / 2.01)), asMat(color)), pos, rot),
+  cyl: (rt, rb, h, color, pos, rot, seg = 40) => place(new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), asMat(color)), pos, rot),
+  sphere: (r, color, pos) => place(new THREE.Mesh(new THREE.SphereGeometry(r, 32, 16), asMat(color)), pos),
+  cone: (r, h, color, pos, rot) => place(new THREE.Mesh(new THREE.ConeGeometry(r, h, 32), asMat(color)), pos, rot),
+  torus: (r, tube, color, pos, rot) => place(new THREE.Mesh(new THREE.TorusGeometry(r, tube, 16, 48), asMat(color)), pos, rot),
+  group: (children = [], pos, rot) => { const g = new THREE.Group(); children.forEach(c => g.add(c)); return place(g, pos, rot); },
+  /** 文字貼片（平面），用於教學標示，如「HTML」「CSS」 */
+  textPlane: (text, w = 1, h = 0.3, opt = {}) => {
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = Math.round(512 * h / w);
+    const g = cv.getContext('2d'); g.fillStyle = opt.bg || 'rgba(0,0,0,0)'; g.fillRect(0, 0, cv.width, cv.height);
+    g.fillStyle = opt.color || '#1d2330'; g.font = `700 ${Math.round(cv.height * 0.6)}px "PingFang TC","Noto Sans TC",sans-serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, cv.width / 2, cv.height / 2);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  },
+  /** 登記零件：name 唯一；parent 可為另一零件名稱 */
+  add(name, obj, parent) {
+    (parent ? parts[parent] : scene).add(obj);
+    parts[name] = obj; obj.name = name;
+    obj.userData.base = snap(obj);
+    return obj;
+  },
+};
+
+/* ---------------- 動畫引擎 ---------------- */
+const EASE = {
+  linear: t => t,
+  in: t => t * t * t,
+  out: t => 1 - Math.pow(1 - t, 3),
+  inOut: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+  outBack: t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+  outBounce: t => { const n = 7.5625, d = 2.75; if (t < 1 / d) return n * t * t; if (t < 2 / d) return n * (t -= 1.5 / d) * t + .75; if (t < 2.5 / d) return n * (t -= 2.25 / d) * t + .9375; return n * (t -= 2.625 / d) * t + .984375; },
+};
+function snap(o) { return { p: o.position.toArray(), r: [o.rotation.x, o.rotation.y, o.rotation.z], s: o.scale.toArray() }; }
+function setT(o, t) { o.position.fromArray(t.p); o.rotation.set(t.r[0], t.r[1], t.r[2]); o.scale.fromArray(t.s); }
+const add3 = (a, b = [0, 0, 0]) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const s3 = v => v == null ? null : (Array.isArray(v) ? v : [v, v, v]);
+const lerp = (a, b, t) => a.map((x, i) => x + (b[i] - x) * t);
+// from: {offset, rot(相對), scale}  → 從偏移位置回到原位（零件登場）
+// to:   {pos, rot, scale(絕對) | move, turn(相對)} → 移動到新狀態並保留到之後的步驟
+function fromT(cur, f) { return { p: add3(cur.p, f.offset || f.pos), r: add3(cur.r, f.rot), s: s3(f.scale) || cur.s }; }
+function toT(cur, t) { return { p: t.pos || add3(cur.p, t.move), r: t.rot || add3(cur.r, t.turn), s: s3(t.scale) || cur.s }; }
+
+const built = window.SCENE_BUILDER(THREE, api);
+const defs = Array.isArray(built) ? built : built.steps;
+const DEFAULT_CAM = (!Array.isArray(built) && built.camera) || { pos: [3.2, 2.4, 3.6], target: [0, 0.5, 0] };
+const steps = L.steps;
+while (defs.length < steps.length) defs.push({});
+
+const sortAnims = d => (d.anims || []).map((a, k) => ({ ...a, k })).sort((a, b) => (a.delay || 0) - (b.delay || 0) || a.k - b.k);
+const introOf = new Map(), hideOf = new Map();
+defs.forEach((d, i) => {
+  for (const a of d.anims || []) if (a.from && parts[a.part] && !introOf.has(parts[a.part])) introOf.set(parts[a.part], i);
+  for (const n of d.show || []) if (parts[n] && !introOf.has(parts[n])) introOf.set(parts[n], i);
+  for (const n of d.hide || []) if (parts[n] && !hideOf.has(parts[n])) hideOf.set(parts[n], i);
+});
+const visibleAt = (o, i) => (introOf.has(o) ? introOf.get(o) <= i : true) && (hideOf.has(o) ? hideOf.get(o) > i : true);
+// 每步的鏡頭（未指定則沿用上一步）
+const camOf = []; defs.forEach((d, i) => camOf[i] = d.camera || camOf[i - 1] || DEFAULT_CAM);
+
+/** 把場景擺成「第 i 步完成後」的狀態 */
+function settle(i) {
+  for (const o of Object.values(parts)) { setT(o, o.userData.base); o.visible = visibleAt(o, i); }
+  for (let s = 0; s <= i; s++) for (const a of sortAnims(defs[s])) {
+    const o = parts[a.part]; if (o && a.to) setT(o, toT(snap(o), a.to));
+  }
+}
+
+let cur = null;           // 目前步驟的動畫狀態
+function prepare(i) {
+  settle(i - 1);
+  const d = defs[i], sim = new Map(), anims = [];
+  for (const n of d.show || []) if (parts[n]) parts[n].visible = true;
+  for (const n of d.hide || []) if (parts[n]) parts[n].visible = false;
+  for (const a of sortAnims(d)) {
+    const o = parts[a.part]; if (!o) { console.warn('scene.js 找不到零件：', a.part); continue; }
+    const now = sim.get(o) || snap(o);
+    let start, end;
+    if (a.from) { end = now; start = fromT(now, a.from); } else { start = now; end = toT(now, a.to || {}); }
+    sim.set(o, end);
+    anims.push({ o, start, end, delay: a.delay || 0, dur: a.dur ?? 1, ease: EASE[a.ease || 'inOut'] || EASE.inOut, intro: !!a.from && introOf.get(o) === i });
+  }
+  const byObj = new Map(); anims.forEach(a => { if (!byObj.has(a.o)) byObj.set(a.o, []); byObj.get(a.o).push(a); });
+  const animDur = Math.max(d.duration || 0, ...anims.map(a => a.delay + a.dur), 0.5);
+  cur = { i, d, byObj, animDur, t0: performance.now() };
+  applyAnims(0);
+}
+function applyAnims(t) {
+  for (const [o, list] of cur.byObj) {
+    let act = null; for (const a of list) if (t >= a.delay) act = a;
+    if (!act) { setT(o, list[0].start); if (list[0].intro) o.visible = false; continue; }
+    const k = act.ease(Math.min(1, (t - act.delay) / act.dur));
+    setT(o, { p: lerp(act.start.p, act.end.p, k), r: lerp(act.start.r, act.end.r, k), s: lerp(act.start.s, act.end.s, k) });
+    o.visible = true;
+  }
+}
+
+/* 高亮 */
+let lit = [];
+function setHighlight(names) {
+  for (const { m, orig } of lit) m.material = orig; lit = [];
+  for (const n of names || []) parts[n]?.traverse(m => {
+    if (!m.isMesh || !m.material.emissive) return;
+    lit.push({ m, orig: m.material }); m.material = m.material.clone();
+  });
+}
+/* 3D 標籤 */
+let labels = [];
+function setLabels(list) {
+  $('labels').innerHTML = '';
+  labels = (list || []).map(l => { const el = document.createElement('div'); el.className = 'lbl'; el.textContent = l.text; $('labels').appendChild(el); return { ...l, el }; });
+}
+const v3 = new THREE.Vector3();
+function updateLabels(t) {
+  for (const l of labels) {
+    const o = l.part && parts[l.part];
+    if (o) { o.getWorldPosition(v3); v3.add(new THREE.Vector3(...(l.at || [0, 0, 0]))); } else v3.set(...(l.at || [0, 0, 0]));
+    const show = t >= (l.delay || 0) && (!o || o.visible);
+    v3.project(camera);
+    l.el.style.left = ((v3.x + 1) / 2 * 100) + '%'; l.el.style.top = ((1 - v3.y) / 2 * 100) + '%';
+    l.el.classList.toggle('on', show && v3.z < 1);
+  }
+}
+/* 鏡頭補間 */
+let camTween = null;
+function flyTo(c, dur = 1.6) {
+  camTween = { p0: camera.position.clone(), t0v: controls.target.clone(), p1: new THREE.Vector3(...c.pos), t1: new THREE.Vector3(...(c.target || [0, 0, 0])), s: performance.now(), dur };
+}
+controls.addEventListener('start', () => camTween = null);
+function jumpTo(c) { camera.position.set(...c.pos); controls.target.set(...(c.target || [0, 0, 0])); controls.update(); }
+
+/* ---------------- 說明書縮圖（未提供 image 時自動拍照） ---------------- */
+const shots = [];
+function makeShots() {
+  const keep = camera.position.clone(), kt = controls.target.clone();
+  steps.forEach((s, i) => {
+    if (s.image) { shots[i] = s.image; return; }
+    settle(i); jumpTo(camOf[i]); renderer.render(scene, camera);
+    shots[i] = renderer.domElement.toDataURL('image/jpeg', 0.85);
+  });
+  camera.position.copy(keep); controls.target.copy(kt); controls.update();
+}
+
+/* ---------------- 音樂（程式生成，循環） ---------------- */
+let ac;
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+class Music {
+  constructor(ctx) {
+    this.ctx = ctx; this.out = ctx.createGain(); this.out.gain.value = 0;
+    const comp = ctx.createDynamicsCompressor(); this.out.connect(comp); comp.connect(ctx.destination);
+    this.vol = +$('vol').value; this.muted = false; this.duck = 1; this.bpm = L.bpm || 116; this.n = 0;
+    const len = ctx.sampleRate * 0.5, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1; this.noise = b;
+    this.prog = [[60, 64, 67], [59, 62, 67], [57, 60, 64], [57, 60, 65]]; this.roots = [36, 43, 45, 41];
+    const _ = -1;
+    this.mel = [[72, _, _, 76, _, _, 79, _, 76, _, 74, _, 72, _, _, _], [74, _, _, 79, _, _, 83, _, 81, _, 79, _, 74, _, _, _],
+                [76, _, _, 81, _, _, 84, _, 83, _, 81, _, 76, _, 79, _], [77, _, _, 81, _, _, 84, _, 81, _, 79, _, 77, _, 76, 74]];
+  }
+  start() { this.next = this.ctx.currentTime + 0.1; clearInterval(this.timer); this.timer = setInterval(() => this.tick(), 25); this.apply(1.2); }
+  apply(r = 0.25) { this.out.gain.setTargetAtTime(this.muted ? 0 : this.vol * this.duck * 0.55, this.ctx.currentTime, r / 3); }
+  tick() {
+    const spb = 60 / this.bpm / 4;
+    while (this.next < this.ctx.currentTime + 0.12) { this.play(this.n, this.next); this.next += spb; this.n++; }
+  }
+  env(t, peak, dec, a = 0.005) { const g = this.ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + dec); g.connect(this.out); return g; }
+  osc(type, f, t, dur, dest) { const o = this.ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); o.connect(dest); o.start(t); o.stop(t + dur + 0.05); return o; }
+  nz(t, dur, ftype, fq, peak) { const s = this.ctx.createBufferSource(); s.buffer = this.noise; const f = this.ctx.createBiquadFilter(); f.type = ftype; f.frequency.value = fq; s.connect(f); f.connect(this.env(t, peak, dur, 0.001)); s.start(t); s.stop(t + dur + 0.02); }
+  play(n, t) {
+    const pos = n % 16, bar = Math.floor(n / 16) % 4, cyc = Math.floor(n / 64), ch = this.prog[bar];
+    if (pos % 4 === 0) { const o = this.osc('sine', 150, t, 0.3, this.env(t, 0.9, 0.28, 0.002)); o.frequency.exponentialRampToValueAtTime(45, t + 0.12); }
+    if (pos === 4 || pos === 12) this.nz(t, 0.14, 'highpass', 1400, 0.22);
+    if (pos % 2 === 1 || pos % 4 === 2) this.nz(t, 0.045, 'highpass', 7500, pos % 4 === 2 ? 0.09 : 0.04);
+    if (pos % 4 === 0 || pos === 7 || pos === 10 || pos === 14) this.osc('triangle', mtof(this.roots[bar] + (pos === 10 ? 12 : 0)), t, 0.22, this.env(t, 0.32, 0.2));
+    if (pos % 4 === 2) { const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1900; f.connect(this.env(t, 0.06, 0.16)); ch.forEach(m => this.osc('square', mtof(m), t, 0.16, f)); }
+    const m = this.mel[bar][pos];
+    if (m > 0 && !(cyc % 2 === 1 && pos % 4 !== 0)) this.osc('triangle', mtof(m + (cyc % 4 === 3 ? 12 : 0)), t, 0.32, this.env(t, 0.16, 0.3));
+  }
+}
+let music;
+function sfxDone() {
+  const t = ac.currentTime, out = ac.createGain(); out.gain.value = 0.5; out.connect(ac.destination);
+  [72, 76, 79, 84, 88].forEach((m, i) => {
+    const g = ac.createGain(), tt = t + i * 0.08; g.gain.setValueAtTime(0.0001, tt); g.gain.exponentialRampToValueAtTime(0.35, tt + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, tt + (i === 4 ? 1.2 : 0.35)); g.connect(out);
+    const o = ac.createOscillator(); o.type = 'triangle'; o.frequency.value = mtof(m); o.connect(g); o.start(tt); o.stop(tt + 1.3);
+  });
+  [60, 64, 67, 72].forEach(m => { const g = ac.createGain(), tt = t + 0.4; g.gain.setValueAtTime(0.0001, tt); g.gain.exponentialRampToValueAtTime(0.12, tt + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, tt + 1.6); g.connect(out); const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(m); const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2200; o.connect(f); f.connect(g); o.start(tt); o.stop(tt + 1.7); });
+  const s = ac.createBufferSource(); s.buffer = music.noise; const g = ac.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25); const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2500; s.connect(f); f.connect(g); g.connect(out); s.start(t);
+}
+const ICON_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>';
+const ICON_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>';
+function paintMute() { $('mute').innerHTML = music?.muted ? ICON_OFF : ICON_ON; $('mute').title = music?.muted ? UI.unmute : UI.mute; }
+paintMute();
+$('mute').onclick = () => { if (!music) return; music.muted = !music.muted; music.apply(); paintMute(); };
+$('vol').oninput = e => { if (!music) return; music.vol = +e.target.value; if (music.muted && music.vol > 0) { music.muted = false; paintMute(); } music.apply(0.1); };
+
+/* ---------------- 旁白 + 字幕 ---------------- */
+const voice = new Audio(); voice.preload = 'auto';
+let subLine = null, token = 0;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function showSub(text, speaker) {
+  const el = $('sub');
+  if (!text) { el.classList.remove('on'); return; }
+  const sp = speaker && L.speakers?.[speaker];
+  el.innerHTML = (speaker ? `<b style="color:${esc(sp?.color || '#ffd27a')}">${esc(speaker)}</b>` : '') + esc(text);
+  el.classList.add('on');
+}
+async function narrate(i, my) {
+  const lines = steps[i].audio || [];
+  if (!lines.length && steps[i].narration) {   // 沒有音檔時的保底：只顯示字幕
+    for (const seg of steps[i].narration.split(/(?<=[。！？!?.])/)) { if (my !== token) return; showSub(seg.trim()); await sleep(Math.max(1500, seg.length * 230)); }
+    showSub(''); return;
+  }
+  for (const ln of lines) {
+    if (my !== token) return;
+    subLine = ln; voice.src = ln.src;
+    if (music) { music.duck = 0.45; music.apply(0.4); }
+    try {
+      await voice.play();
+      await new Promise(res => { voice.onended = res; voice.onerror = res; const chk = setInterval(() => { if (my !== token) { clearInterval(chk); res(); } }, 100); voice.addEventListener('ended', () => clearInterval(chk), { once: true }); });
+    } catch (e) { console.warn(e); await sleep(1500); }
+    subLine = null; showSub('');
+    if (my !== token) return;
+    await sleep(350);
+  }
+  if (music) { music.duck = 1; music.apply(0.8); }
+}
+function updateSub() {
+  if (!subLine) return;
+  const t = voice.currentTime; let c = null;
+  for (const q of subLine.cues) if (t >= q.start - 0.05) c = q;
+  showSub(c && t <= c.end + 0.6 ? c.text : '', subLine.speaker);
+}
+const narrDur = i => (steps[i].audio || []).reduce((s, l) => s + (l.cues.at(-1)?.end || 2) + 0.35, 0);
+
+/* ---------------- 程式碼面板 ----------------
+   lesson.json: "code": [完整程式每一行], 每步 "code": { "add": [行號或 "a-b"], "focus": [...] }（行號由 1 起，對應完整程式）
+   已加入的行依原位置顯示（行號按目前可見行重新編號，像在編輯器逐行打字）；focus 省略 = 本步新加入的行。 */
+const CODE = Array.isArray(L.code) ? L.code : null;
+const lineSet = list => new Set((list || []).flatMap(x => { const m = String(x).match(/^(\d+)\s*-\s*(\d+)$/); if (!m) return [+x]; const o = []; for (let k = +m[1]; k <= +m[2]; k++) o.push(k); return o; }));
+const TOKEN = /(\/\/.*$)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(^\s*#\s*\w+(?:\s*<[^>]*>)?)|\b(for|if|else|while|do|return|using|namespace|break|continue|switch|case|const|auto)\b|\b(int|long|short|double|float|bool|char|void|string|std|cin|cout|endl)\b|\b(\d+(?:\.\d+)?)\b/g;
+function hl(src) {
+  let out = '', last = 0;
+  for (const m of src.matchAll(TOKEN)) {
+    out += esc(src.slice(last, m.index));
+    const cls = m[1] ? 'com' : m[2] ? 'str' : m[3] ? 'pre' : m[4] ? 'kw' : m[5] ? 'ty' : 'num';
+    out += `<span class="tk-${cls}">${esc(m[0])}</span>`; last = m.index + m[0].length;
+  }
+  return out + esc(src.slice(last)) || '\u200b';
+}
+let codeRows = [];
+if (CODE) {
+  document.body.classList.add('has-code');
+  $('codeTitle').textContent = L.codeTitle || 'main.cpp';
+  $('codeBody').innerHTML = CODE.map(s => `<div class="cl"><span class="n"></span><span class="t">${hl(s)}</span></div>`).join('');
+  codeRows = [...$('codeBody').children];
+}
+function setCode(i) {
+  if (!CODE) return;
+  const shown = new Set();
+  for (let k = 0; k <= i; k++) for (const n of lineSet(steps[k].code?.add)) shown.add(n);
+  const added = lineSet(steps[i].code?.add);
+  const focus = steps[i].code?.focus ? lineSet(steps[i].code.focus) : added;
+  let no = 0, first = null;
+  codeRows.forEach((r, k) => {
+    const n = k + 1, on = shown.has(n);
+    r.classList.toggle('on', on); r.classList.toggle('focus', on && focus.has(n));
+    r.classList.remove('new'); if (on && added.has(n)) { void r.offsetWidth; r.classList.add('new'); }
+    r.firstChild.textContent = on ? ++no : '';
+    if (on && focus.has(n) && !first) first = r;
+  });
+  if (first) setTimeout(() => first.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 520);
+}
+
+/* ---------------- 流程控制 ---------------- */
+const N = steps.length;
+$('bar').innerHTML = steps.map(() => '<div class="seg"><i></i></div>').join('');
+const segs = [...$('bar').querySelectorAll('i')];
+let idx = 0, phase = 'intro', estDur = 1;
+
+function setProgress(i, frac) { segs.forEach((s, k) => s.style.width = (k < i ? 100 : k === i ? Math.min(100, frac * 100) : 0) + '%'); }
+function setButtons() {
+  const last = idx === N - 1, ready = phase === 'paused';
+  $('prev').disabled = idx === 0;
+  $('next').querySelector('span').textContent = last ? UI.done : UI.next;
+  $('next').classList.toggle('ready', ready);
+  $('paused').classList.toggle('on', ready && !last);
+}
+async function playStep(i) {
+  const my = ++token;
+  idx = i; phase = 'playing'; voice.pause(); showSub('');
+  prepare(i); setHighlight(defs[i].highlight); setLabels(defs[i].labels); setCode(i);
+  flyTo(camOf[i], i === 0 ? 2.2 : 1.6);
+  $('stepTitle').innerHTML = `<small>${UI.step} ${i + 1} / ${N}</small>${esc(steps[i].title)}`;
+  $('thumb').style.backgroundImage = `url("${shots[i]}")`; $('thumb').querySelector('span').textContent = `${UI.manual} ${i + 1}`;
+  estDur = Math.max(cur.animDur, narrDur(i)) || 1;
+  setButtons();
+  await Promise.all([narrate(i, my), sleep(cur.animDur * 1000 + 300)]);
+  if (my !== token) return;
+  phase = 'paused'; setProgress(i, 1); setButtons();
+  if (music) { music.duck = 1; music.apply(0.8); }
+}
+$('prev').onclick = () => idx > 0 && playStep(idx - 1);
+$('replay').onclick = () => playStep(idx);
+$('next').onclick = () => idx < N - 1 ? playStep(idx + 1) : finish();
+addEventListener('keydown', e => {
+  if (phase === 'intro' || phase === 'done') return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); $('next').click(); }
+  if (e.key === 'ArrowLeft') $('prev').click();
+  if (e.key.toLowerCase() === 'r') $('replay').click();
+});
+
+$('start').onclick = async () => {
+  ac = ac || new (window.AudioContext || window.webkitAudioContext)(); await ac.resume();
+  if (!music) { music = new Music(ac); music.start(); paintMute(); }
+  $('startOv').classList.add('hide');
+  for (const id of ['ctrl', 'thumb', 'music', 'stepTitle', 'code']) $(id).style.opacity = 1;
+  playStep(0);
+};
+$('restart').onclick = () => { $('doneOv').classList.add('hide'); $('ctrl').style.opacity = 1; playStep(0); };
+function finish() {
+  token++; phase = 'done'; voice.pause(); showSub(''); setLabels([]); setHighlight([]);
+  setProgress(N, 1); $('paused').classList.remove('on'); $('next').classList.remove('ready');
+  sfxDone(); confetti();
+  setTimeout(() => $('doneOv').classList.remove('hide'), 900);
+}
+
+/* ---------------- 縮圖放大（FLIP） ---------------- */
+const zoom = $('zoom'), zimg = zoom.querySelector('img');
+let zoomOpen = false;
+function thumbXf() {
+  const r = $('thumb').getBoundingClientRect(), W = innerWidth, H = innerHeight;
+  const ar = r.width / r.height, w = Math.min(W * 0.92, H * 0.92 * ar), h = w / ar;
+  const x = (W - w) / 2, y = (H - h) / 2;
+  zimg.style.width = w + 'px'; zimg.style.height = h + 'px'; zimg.style.objectFit = 'contain';
+  return { from: `translate(${r.left}px,${r.top}px) scale(${r.width / w})`, to: `translate(${x}px,${y}px) scale(1)` };
+}
+$('thumb').onclick = () => {
+  zimg.src = shots[idx]; const xf = thumbXf();
+  zoom.style.display = 'block'; zimg.style.transition = 'none'; zimg.style.transform = xf.from;
+  requestAnimationFrame(() => requestAnimationFrame(() => { zimg.style.transition = ''; zimg.style.transform = xf.to; zoom.classList.add('show'); }));
+  zoomOpen = true;
+};
+zoom.onclick = () => {
+  if (!zoomOpen) return; zoomOpen = false; const xf = thumbXf();
+  zimg.style.transform = xf.from; zoom.classList.remove('show');
+  setTimeout(() => zoom.style.display = 'none', 360);
+};
+
+/* ---------------- 彩帶 ---------------- */
+function confetti() {
+  const cv = $('confetti'), g = cv.getContext('2d'); cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio;
+  g.scale(devicePixelRatio, devicePixelRatio);
+  const cols = ['#ff7a45', '#3d7cff', '#ffd23f', '#2ec4b6', '#ff5d8f', '#8f5bff'];
+  const P = [];
+  for (const side of [0, 1]) for (let k = 0; k < 130; k++) {
+    const a = 0.35 + Math.random() * 0.75, sp = 9 + Math.random() * 12;
+    P.push({ x: side ? innerWidth : 0, y: innerHeight * 0.8, vx: Math.cos(a) * sp * (side ? -1 : 1), vy: -Math.sin(a) * sp - 6,
+      w: 6 + Math.random() * 6, h: 8 + Math.random() * 10, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: cols[k % cols.length] });
+  }
+  const t0 = performance.now();
+  (function frame(now) {
+    g.clearRect(0, 0, innerWidth, innerHeight);
+    for (const p of P) {
+      p.vy += 0.32; p.vx *= 0.985; p.vy *= 0.985; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.scale(1, Math.cos(p.r * 2)); g.fillStyle = p.c; g.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); g.restore();
+    }
+    if (now - t0 < 5000) requestAnimationFrame(frame); else g.clearRect(0, 0, innerWidth, innerHeight);
+  })(t0);
+}
+
+/* ---------------- 主迴圈 ---------------- */
+makeShots();
+settle(N - 1); jumpTo(camOf[N - 1]);       // 開始畫面：展示完成品，慢慢旋轉
+controls.autoRotate = true; controls.autoRotateSpeed = 0.8;
+
+// 製作者預覽：?preview=3（第 3 步結束畫面）或 ?preview=3&t=1.5（第 3 步第 1.5 秒），無聲音
+const q = new URLSearchParams(location.search);
+if (q.has('preview')) {
+  const i = Math.max(0, Math.min(N - 1, (+q.get('preview') || 1) - 1));
+  $('startOv').classList.add('hide'); for (const id of ['ctrl', 'thumb', 'music', 'stepTitle', 'code']) $(id).style.opacity = 1;
+  idx = i; prepare(i); setHighlight(defs[i].highlight); setLabels(defs[i].labels); setCode(i); jumpTo(camOf[i]);
+  $('stepTitle').innerHTML = `<small>${UI.step} ${i + 1} / ${N}</small>${esc(steps[i].title)}`;
+  $('thumb').style.backgroundImage = `url("${shots[i]}")`; $('thumb').querySelector('span').textContent = `${UI.manual} ${i + 1}`;
+  showSub(steps[i].audio?.[0]?.cues?.[0]?.text || steps[i].narration?.slice(0, 20), steps[i].audio?.[0]?.speaker);
+  const ft = q.has('t') ? +q.get('t') : 999;
+  cur.t0 = performance.now() - ft * 1000; phase = q.has('t') ? 'playing' : 'paused'; setButtons(); setProgress(i, q.has('t') ? 0.5 : 1);
+  if (q.has('t')) { setInterval(() => cur.t0 = performance.now() - ft * 1000, 16); }
+}
+renderer.setAnimationLoop(now => {
+  if (phase !== 'intro') controls.autoRotate = false;
+  if (camTween) {
+    const k = EASE.inOut(Math.min(1, (now - camTween.s) / (camTween.dur * 1000)));
+    camera.position.lerpVectors(camTween.p0, camTween.p1, k); controls.target.lerpVectors(camTween.t0v, camTween.t1, k);
+    if (k >= 1) camTween = null;
+  }
+  controls.update();
+  if (cur && phase !== 'intro') {
+    const t = (now - cur.t0) / 1000;
+    applyAnims(t);
+    cur.d.update?.(t, api);
+    const pulse = 0.35 + 0.35 * Math.sin(t * 5);
+    for (const { m } of lit) m.material.emissive.setHex(0xff7a45), m.material.emissiveIntensity = phase === 'playing' ? pulse : 0;
+    updateLabels(t);
+    if (phase === 'playing') setProgress(idx, (performance.now() - cur.t0) / 1000 / estDur);
+  }
+  updateSub();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
